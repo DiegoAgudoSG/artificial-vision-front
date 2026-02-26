@@ -18,6 +18,12 @@ const CONFIDENCE_THRESHOLD = 0.5
 
 export type LiveStatus = 'idle' | 'scanning' | 'analyzing' | 'detected'
 
+export interface HistoryEntry {
+  result: AnalysisResponse
+  thumbnail: string   // base64 data URL, captured from <video> at detection time
+  id: string          // sequential display ID: V001, V002…
+}
+
 export function useLiveDetection(
   videoEl: Ref<HTMLVideoElement | null>,
   canvasEl: Ref<HTMLCanvasElement | null>,
@@ -27,8 +33,9 @@ export function useLiveDetection(
 
   const isRunning = ref(false)
   const status = ref<LiveStatus>('idle')
-  const history = ref<AnalysisResponse[]>([])   // newest first
+  const history = ref<HistoryEntry[]>([])   // newest first
   const confidence = ref<number | null>(null)
+  let entryCounter = 0
 
   // Non-reactive guards (no overhead in the hot loop)
   let isAnalyzing = false
@@ -48,6 +55,17 @@ export function useLiveDetection(
     status.value = 'analyzing'
 
     try {
+      // Capture thumbnail FIRST (same frame that will be sent to the API)
+      let pendingThumbnail = ''
+      const vd = videoEl.value
+      if (vd && vd.videoWidth > 0) {
+        const tc = document.createElement('canvas')
+        tc.width = 240
+        tc.height = Math.round(240 * vd.videoHeight / vd.videoWidth)
+        tc.getContext('2d')?.drawImage(vd, 0, 0, tc.width, tc.height)
+        pendingThumbnail = tc.toDataURL('image/jpeg', 0.7)
+      }
+
       const frame = await captureFrame(videoEl.value, canvasEl.value, 0.75)
       await analyze([frame])
 
@@ -57,8 +75,11 @@ export function useLiveDetection(
         )
 
         if (hits.length > 0) {
-          // Prepend new result — keeps the full history visible
-          history.value = [rawResult.value as AnalysisResponse, ...history.value]
+          const thumbnail = pendingThumbnail
+
+          entryCounter++
+          const id = `V${String(entryCounter).padStart(3, '0')}`
+          history.value = [{ result: rawResult.value as AnalysisResponse, thumbnail, id }, ...history.value]
           confidence.value = hits[0]?.confidence ?? null
           status.value = 'detected'
 
@@ -115,7 +136,12 @@ export function useLiveDetection(
   function clearHistory() {
     history.value = []
     confidence.value = null
+    entryCounter = 0
     reset()
+  }
+
+  function removeEntry(id: string) {
+    history.value = history.value.filter((e) => e.id !== id)
   }
 
   onUnmounted(stopLive)
@@ -124,7 +150,7 @@ export function useLiveDetection(
     // State
     isRunning: readonly(isRunning),
     status: readonly(status),
-    history: readonly(history) as Readonly<Ref<AnalysisResponse[]>>,
+    history: readonly(history) as Readonly<Ref<HistoryEntry[]>>,
     confidence: readonly(confidence),
     analyzing,
     error: analyzeError,
@@ -134,5 +160,6 @@ export function useLiveDetection(
     startLive,
     stopLive,
     clearHistory,
+    removeEntry,
   }
 }
