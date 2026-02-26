@@ -10,7 +10,7 @@
  *   await analyze([file1, file2])
  */
 
-import { VisionAgentSDK } from 'vision-agent-sdk'
+import { VisionAgentSDK } from '@studiogenesis/vision-agent-sdk'
 import type { AnalysisResponse } from '~/types/analysis'
 
 export function useAnalyze() {
