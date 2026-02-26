@@ -4,26 +4,16 @@
  * Encapsulates all reactive state and the POST /api/analyze call so
  * pages/components stay clean.
  *
+ * Accepts a single File or an array of Files. Multiple images are sent in one
+ * batch request and the full AnalysisResponse is stored in `result`.
+ *
  * Usage:
  *   const { loading, result, error, analyze, reset } = useAnalyze()
+ *   await analyze(file)
+ *   await analyze([file1, file2])
  */
 
-export interface AnalysisResult {
-  type?: string
-  // Receipt fields
-  store?: string
-  date?: string
-  total?: string | number
-  items?: unknown[]
-  // Vehicle fields
-  license_plate?: string
-  vehicle_type?: string
-  color?: string
-  make?: string
-  model?: string
-  // Generic catch-all
-  [key: string]: unknown
-}
+import type { AnalysisResponse } from '~/types/analysis'
 
 interface FetchError {
   data?: { statusMessage?: string; message?: string }
@@ -37,10 +27,15 @@ function isFetchError(err: unknown): err is FetchError {
 
 export function useAnalyze() {
   const loading = ref(false)
-  const result = ref<AnalysisResult | null>(null)
+  const result = ref<AnalysisResponse | null>(null)
   const error = ref<string | null>(null)
 
-  async function analyze(file: File) {
+  /**
+   * Send one or more images to the backend for analysis.
+   * Each file is appended under the `images` key so the backend
+   * receives a standard multipart/form-data batch request.
+   */
+  async function analyze(files: File | File[]) {
     if (loading.value) return
 
     loading.value = true
@@ -53,10 +48,13 @@ export function useAnalyze() {
 
     try {
       const formData = new FormData()
-      formData.append('image', file)
+      const fileList = Array.isArray(files) ? files : [files]
+      for (const file of fileList) {
+        formData.append('images', file)
+      }
 
-      result.value = await $fetch<AnalysisResult>(`${backendUrl}/health`, {
-        method: 'GET',
+      result.value = await $fetch<AnalysisResponse>(`${backendUrl}/api/analyze`, {
+        method: 'POST',
         body: formData,
       })
     } catch (err: unknown) {

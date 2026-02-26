@@ -1,6 +1,32 @@
 <template>
   <div class="w-full space-y-4">
 
+    <!-- Toast: incompatible file format -->
+    <Transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="opacity-0 translate-y-2"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 translate-y-2"
+    >
+      <div
+        v-if="toastVisible"
+        class="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-zinc-900 border border-red-500/30 shadow-xl shadow-black/40 max-w-xs"
+        role="alert"
+      >
+        <div class="shrink-0 w-7 h-7 rounded-full bg-red-500/15 flex items-center justify-center">
+          <svg class="w-3.5 h-3.5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div>
+          <p class="text-xs font-semibold text-white">Incompatible format</p>
+          <p class="text-xs text-zinc-400 mt-0.5">Only PNG, JPG and WEBP are accepted.</p>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Source tabs -->
     <div class="flex gap-1 p-1 bg-zinc-900 border border-zinc-800 rounded-xl w-fit">
       <button
@@ -19,17 +45,19 @@
     <Transition name="fade" mode="out-in">
       <div v-if="mode === 'file'" key="file" class="w-full">
         <div
-          class="relative flex flex-col items-center justify-center w-full rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer select-none"
+          class="relative flex flex-col items-center justify-center w-full rounded-2xl border-2 border-dashed transition-all duration-300 select-none"
           :class="[
-            isDragging
-              ? 'border-violet-500 bg-violet-500/10 scale-[1.01]'
-              : activeCapture
-                ? 'border-zinc-700 bg-zinc-900 cursor-default'
-                : 'border-zinc-700/70 bg-zinc-900/60 hover:border-violet-500/50 hover:bg-violet-500/5',
+            isDraggingInvalid
+              ? 'border-red-500/50 bg-red-500/5 cursor-no-drop opacity-60'
+              : isDragging
+                ? 'border-violet-500 bg-violet-500/10 scale-[1.01] cursor-copy'
+                : disabled
+                  ? 'border-zinc-800 bg-zinc-900/40 pointer-events-none opacity-60'
+                  : 'border-zinc-700/70 bg-zinc-900/60 hover:border-violet-500/50 hover:bg-violet-500/5 cursor-pointer',
           ]"
           style="min-height: 220px;"
-          @dragover.prevent="isDragging = true"
-          @dragleave.prevent="isDragging = false"
+          @dragover.prevent="onDragOver"
+          @dragleave.prevent="onDragLeave"
           @drop.prevent="onDrop"
           @click="triggerPicker()"
         >
@@ -58,7 +86,7 @@
                   >Browse file</span>
                   or drag &amp; drop
                 </p>
-                <p class="text-xs text-zinc-600 mt-1.5">PNG, JPG, WEBP, GIF — up to 20 MB</p>
+                <p class="text-xs text-zinc-600 mt-1.5">PNG, JPG, WEBP — up to 20 MB</p>
               </div>
             </div>
           </template>
@@ -68,6 +96,7 @@
             <div class="relative w-full p-3">
               <img :src="activeCapture.url" alt="Preview" class="w-full max-h-80 object-contain rounded-xl" />
               <button
+                v-if="!disabled"
                 type="button"
                 class="absolute top-5 right-5 w-8 h-8 rounded-full bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 transition-all hover:scale-110"
                 @click.stop="removeCapture(activeCapture.id)"
@@ -99,6 +128,7 @@
             >
               <img :src="entry.url" :alt="entry.file.name" class="w-full h-full object-cover" />
               <button
+                v-if="!disabled"
                 type="button"
                 class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-zinc-950/90 flex items-center justify-center text-zinc-400 hover:text-white"
                 @click.stop="removeCapture(entry.id)"
@@ -111,6 +141,7 @@
 
             <!-- "Add more" tile -->
             <button
+              v-if="!disabled"
               type="button"
               title="Add more files"
               class="shrink-0 w-16 h-16 rounded-xl border-2 border-dashed border-zinc-700 hover:border-violet-500/60 bg-zinc-900/60 hover:bg-violet-500/5 flex items-center justify-center text-zinc-600 hover:text-violet-400 transition-all"
@@ -127,7 +158,7 @@
         <input
           ref="inputRef"
           type="file"
-          accept="image/*"
+          accept="image/png,image/jpeg,image/webp"
           multiple
           class="hidden"
           @change="onFileChange"
@@ -222,7 +253,7 @@
 
               <!-- Front/back flip -->
               <button
-                v-if="hasMultipleCameras"
+                v-if="canFlipCamera"
                 type="button"
                 title="Flip camera"
                 class="w-8 h-8 rounded-full bg-zinc-950/80 backdrop-blur-sm border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
@@ -246,41 +277,44 @@
               </button>
             </div>
 
-            <!-- Auto-analyze toggle (bottom-left) -->
-            <div class="absolute bottom-3 left-3 flex items-center gap-2 bg-zinc-950/80 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-zinc-800">
-              <span class="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider select-none">Auto</span>
-              <button
-                type="button"
-                :aria-label="autoAnalyze ? 'Disable auto-analyze' : 'Enable auto-analyze'"
-                class="relative w-8 h-4 rounded-full transition-colors duration-200"
-                :class="autoAnalyze ? 'bg-violet-600' : 'bg-zinc-700'"
-                @click="autoAnalyze = !autoAnalyze"
-              >
-                <span
-                  class="absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-all duration-200"
-                  :class="autoAnalyze ? 'left-4' : 'left-0.5'"
-                ></span>
-              </button>
-            </div>
+            <!-- Bottom bar: Auto toggle + Zoom slider side-by-side, never overlapping -->
+            <div class="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
+              <!-- Auto-analyze toggle -->
+              <div class="flex items-center gap-2 bg-zinc-950/80 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-zinc-800 shrink-0">
+                <span class="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider select-none">Auto</span>
+                <button
+                  type="button"
+                  :aria-label="autoAnalyze ? 'Disable auto-analyze' : 'Enable auto-analyze'"
+                  class="relative w-8 h-4 rounded-full transition-colors duration-200"
+                  :class="autoAnalyze ? 'bg-violet-600' : 'bg-zinc-700'"
+                  @click="autoAnalyze = !autoAnalyze"
+                >
+                  <span
+                    class="absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-all duration-200"
+                    :class="autoAnalyze ? 'left-4' : 'left-0.5'"
+                  ></span>
+                </button>
+              </div>
 
-            <!-- Zoom slider (bottom-right, only if hardware supports it) -->
-            <div
-              v-if="zoomSupported"
-              class="absolute bottom-3 right-3 flex items-center gap-2 bg-zinc-950/80 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-zinc-800"
-            >
-              <svg class="w-3 h-3 text-zinc-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607ZM10.5 7.5v6m3-3h-6" />
-              </svg>
-              <input
-                type="range"
-                :min="zoomMin"
-                :max="zoomMax"
-                :step="(zoomMax - zoomMin) / 20"
-                :value="zoomLevel"
-                class="w-20 h-1 accent-violet-500 cursor-pointer"
-                @input="onZoomInput"
-              />
-              <span class="text-[10px] text-zinc-500 w-6 text-right tabular-nums">{{ zoomLevel.toFixed(1) }}×</span>
+              <!-- Zoom slider (only if hardware supports it) -->
+              <div
+                v-if="zoomSupported"
+                class="flex items-center gap-2 bg-zinc-950/80 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-zinc-800 min-w-0"
+              >
+                <svg class="w-3 h-3 text-zinc-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607ZM10.5 7.5v6m3-3h-6" />
+                </svg>
+                <input
+                  type="range"
+                  :min="zoomMin"
+                  :max="zoomMax"
+                  :step="(zoomMax - zoomMin) / 20"
+                  :value="zoomLevel"
+                  class="w-16 min-w-0 h-1 accent-violet-500 cursor-pointer"
+                  @input="onZoomInput"
+                />
+                <span class="text-[10px] text-zinc-500 w-6 text-right tabular-nums shrink-0">{{ zoomLevel.toFixed(1) }}×</span>
+              </div>
             </div>
           </template>
 
@@ -296,6 +330,7 @@
             <button
               type="button"
               class="absolute top-3 right-3 w-7 h-7 rounded-full bg-zinc-950/80 backdrop-blur-sm border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+              :class="disabled ? 'hidden' : ''"
               @click="removeCapture(activeCapture.id)"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -340,6 +375,7 @@
             >
               <img :src="entry.url" :alt="entry.file.name" class="w-full h-full object-cover" />
               <button
+                v-if="!disabled"
                 type="button"
                 class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-zinc-950/90 flex items-center justify-center text-zinc-400 hover:text-white"
                 @click.stop="removeCapture(entry.id)"
@@ -352,6 +388,7 @@
 
             <!-- "Add another" tile -->
             <button
+              v-if="!disabled"
               type="button"
               title="Take another photo"
               class="shrink-0 w-16 h-16 rounded-xl border-2 border-dashed border-zinc-700 hover:border-violet-500/60 bg-zinc-900/60 hover:bg-violet-500/5 flex items-center justify-center text-zinc-600 hover:text-violet-400 transition-all"
@@ -370,8 +407,21 @@
 </template>
 
 <script setup lang="ts">
+const props = withDefaults(defineProps<{
+  /**
+   * Locks the entire uploader — hides remove/add controls and prevents
+   * all user interaction. Use while an analysis request is in-flight.
+   */
+  disabled?: boolean
+}>(), { disabled: false })
+
 const emit = defineEmits<{
+  /** Last-activated file (unchanged for backwards compat) */
   'update:file': [file: File | null]
+  /** Full gallery as a File[] — fires on every gallery mutation */
+  'update:files': [files: File[]]
+  /** Full gallery with stable IDs — use to track which result matches which image */
+  'update:captures': [captures: { id: string; file: File }[]]
   'analyze': []
 }>()
 
@@ -392,7 +442,7 @@ const tabs = [
 const mode = ref<Mode>('file')
 
 function switchMode(newMode: Mode) {
-  if (newMode === mode.value) return
+  if (props.disabled || newMode === mode.value) return
   if (mode.value === 'camera') stopCamera()
   mode.value = newMode
 }
@@ -408,12 +458,19 @@ const activeCapture = computed<CaptureEntry | null>(
   () => captures.value.find((c) => c.id === activeId.value) ?? null,
 )
 
+function emitGallery() {
+  emit('update:files', captures.value.map((c) => c.file))
+  emit('update:captures', captures.value.map((c) => ({ id: c.id, file: c.file })))
+}
+
 function addCapture(file: File) {
+  if (props.disabled) return
   const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
   const url = URL.createObjectURL(file)
   captures.value.push({ id, file, url })
   activeId.value = id
   emit('update:file', file)
+  emitGallery()
   if (autoAnalyze.value) emit('analyze')
 }
 
@@ -424,6 +481,7 @@ function selectCapture(id: string) {
 }
 
 function removeCapture(id: string) {
+  if (props.disabled) return
   const idx = captures.value.findIndex((c) => c.id === id)
   if (idx === -1) return
   URL.revokeObjectURL(captures.value[idx].url)
@@ -434,29 +492,62 @@ function removeCapture(id: string) {
     activeId.value = next?.id ?? null
     emit('update:file', next?.file ?? null)
   }
+  emitGallery()
 }
 
 // ── File upload (FILE mode) ───────────────────────────────────────────────────
+const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
+const isAllowed = (type: string) => ALLOWED_TYPES.has(type)
+
 const isDragging = ref(false)
+const isDraggingInvalid = ref(false)
+const toastVisible = ref(false)
+let toastTimer: ReturnType<typeof setTimeout> | null = null
 const inputRef = ref<HTMLInputElement | null>(null)
 
-function triggerPicker() { inputRef.value?.click() }
+function triggerPicker() { if (!props.disabled) inputRef.value?.click() }
+
+function showToast() {
+  if (toastTimer) clearTimeout(toastTimer)
+  toastVisible.value = true
+  toastTimer = setTimeout(() => { toastVisible.value = false }, 3500)
+}
+
+function onDragOver(event: DragEvent) {
+  if (props.disabled) return
+  const items = Array.from(event.dataTransfer?.items ?? [])
+  const hasFiles = items.some(i => i.kind === 'file')
+  if (!hasFiles) return
+  const allImages = items
+    .filter(i => i.kind === 'file')
+    .every(i => isAllowed(i.type))
+  isDraggingInvalid.value = !allImages
+  isDragging.value = allImages
+}
+
+function onDragLeave() {
+  isDragging.value = false
+  isDraggingInvalid.value = false
+}
 
 function onFileChange(event: Event) {
   const input = event.target as HTMLInputElement
   const files = Array.from(input.files ?? [])
   files
-    .filter(file => file.type.startsWith('image/'))
+    .filter(file => isAllowed(file.type))
     .forEach(file => addCapture(file))
   if (inputRef.value) inputRef.value.value = ''
 }
 
 function onDrop(event: DragEvent) {
   isDragging.value = false
+  isDraggingInvalid.value = false
+  if (props.disabled) return
   const files = Array.from(event.dataTransfer?.files ?? [])
-  files
-    .filter(file => file.type.startsWith('image/'))
-    .forEach(file => addCapture(file))
+  const imageFiles = files.filter(file => isAllowed(file.type))
+  const hasInvalid = files.some(file => !isAllowed(file.type))
+  imageFiles.forEach(file => addCapture(file))
+  if (hasInvalid) showToast()
 }
 
 // ── Camera ────────────────────────────────────────────────────────────────────
@@ -473,6 +564,7 @@ const {
   torchOn,
   torchSupported,
   hasMultipleCameras,
+  canFlipCamera,
   startCamera,
   stopCamera,
   toggleFacingMode,
@@ -482,7 +574,7 @@ const {
 } = useCamera()
 
 async function onStartCamera() {
-  if (!videoRef.value) return
+  if (props.disabled || !videoRef.value) return
   await nextTick()
   await startCamera(videoRef.value, canvasRef.value ?? undefined)
 }
@@ -509,6 +601,7 @@ async function onCapturePhoto() {
 }
 
 function onAddAnother() {
+  if (props.disabled) return
   activeId.value = null
   onStartCamera()
 }
@@ -523,6 +616,7 @@ function formatSize(bytes: number): string {
 // ── Cleanup ───────────────────────────────────────────────────────────────────
 onUnmounted(() => {
   captures.value.forEach((c) => URL.revokeObjectURL(c.url))
+  if (toastTimer) clearTimeout(toastTimer)
   // Camera stream cleanup handled by useCamera's own onUnmounted
 })
 </script>

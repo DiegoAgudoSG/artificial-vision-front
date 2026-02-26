@@ -26,16 +26,16 @@
           <span class="w-6 h-6 rounded-md bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400">1</span>
           <h2 class="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Upload Image</h2>
         </div>
-        <ImageUploader @update:file="file = $event" @analyze="handleAnalyze" />
+        <ImageUploader :disabled="loading" @update:captures="captures = $event" @analyze="handleAnalyze" />
       </div>
 
       <!-- Analyze button -->
       <button
         type="button"
-        :disabled="!file || loading"
+        :disabled="!captures.length || loading"
         class="w-full rounded-2xl px-6 py-4 font-semibold text-base transition-all duration-200 flex items-center justify-center gap-2.5 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 focus:ring-offset-zinc-950"
         :class="[
-          !file || loading
+          !captures.length || loading
             ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
             : 'bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white shadow-lg shadow-violet-900/30 hover:shadow-violet-800/40',
         ]"
@@ -63,7 +63,7 @@
             <span class="w-6 h-6 rounded-md bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400">2</span>
             <h2 class="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Analysis Result</h2>
           </div>
-          <ResultViewer :result="result" :loading="loading" :error="error" />
+          <ResultViewer :result="filteredResult" :loading="loading" :error="error" />
         </div>
       </Transition>
     </div>
@@ -76,11 +76,51 @@
 </template>
 
 <script setup lang="ts">
-const file = ref<File | null>(null)
+import type { AnalysisResponse } from '~/types/analysis'
+import { isTicketResult, isVehicleResult } from '~/types/analysis'
+
+const captures = ref<{ id: string; file: File }[]>([])
+const submittedIds = ref<string[]>([])
 const { loading, result, error, analyze } = useAnalyze()
 
+/**
+ * Derives a filtered AnalysisResponse that only keeps results whose gallery
+ * entry hasn’t been removed since the last analysis run.
+ * The summary counts are recalculated to stay consistent.
+ */
+const filteredResult = computed<AnalysisResponse | null>(() => {
+  if (!result.value || !submittedIds.value.length) return result.value
+
+  const presentIds = new Set(captures.value.map((c) => c.id))
+  const filteredResults = result.value.results.filter((_, i) => {
+    const id = submittedIds.value[i]
+    return id !== undefined && presentIds.has(id)
+  })
+
+  if (filteredResults.length === result.value.results.length) return result.value
+
+  // Recompute summary from surviving results
+  const totalTickets = filteredResults.filter((r) => r.type === 'ticket').length
+  const totalSpent = filteredResults
+    .filter(isTicketResult)
+    .reduce((sum, r) => sum + r.data.totals.total, 0)
+  const vehiclesDetected = filteredResults.filter((r) => r.type === 'vehicle').length
+  const vehicleTypes: Record<string, number> = {}
+  filteredResults.filter(isVehicleResult).forEach((r) => {
+    const vt = r.data.vehicle.vehicle_type ?? 'unknown'
+    vehicleTypes[vt] = (vehicleTypes[vt] ?? 0) + 1
+  })
+
+  return {
+    ...result.value,
+    results: filteredResults,
+    summary: { total_tickets: totalTickets, total_spent: totalSpent, vehicles_detected: vehiclesDetected, vehicle_types: vehicleTypes },
+  }
+})
+
 async function handleAnalyze() {
-  if (!file.value) return
-  await analyze(file.value)
+  if (!captures.value.length) return
+  submittedIds.value = captures.value.map((c) => c.id)
+  await analyze(captures.value.map((c) => c.file))
 }
 </script>

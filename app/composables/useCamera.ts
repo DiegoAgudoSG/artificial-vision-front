@@ -46,6 +46,10 @@ export function useCamera() {
   // Raw stream – not reactive (no Vue overhead for MediaStream)
   let stream: MediaStream | null = null
 
+  // Keep element refs so visibility handler can restart without component involvement
+  let _videoEl: HTMLVideoElement | null = null
+  let _canvasEl: HTMLCanvasElement | undefined = undefined
+
   // ── Helpers ────────────────────────────────────────────────────────────────
   async function detectMultipleCameras() {
     try {
@@ -86,12 +90,14 @@ export function useCamera() {
   ) {
     cameraError.value = null
 
+    // Remember elements for auto-restart on visibility change
+    _videoEl = videoEl
+    _canvasEl = canvasEl
+
     // Stop any existing stream first
     _stopTracks()
 
     try {
-      await detectMultipleCameras()
-
       stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: facingMode.value },
@@ -106,6 +112,8 @@ export function useCamera() {
       })
 
       cameraActive.value = true
+      // Detect after permission is granted — browsers expose full device list only then
+      await detectMultipleCameras()
       detectCapabilities()
     } catch (err: unknown) {
       cameraActive.value = false
@@ -210,8 +218,40 @@ export function useCamera() {
     })
   }
 
+  // True when a front/back flip is worth offering:
+  // - detected ≥2 cameras (post-permission), OR
+  // - touch device (phones/tablets always have both)
+  const canFlipCamera = computed(
+    () =>
+      hasMultipleCameras.value ||
+      (typeof window !== 'undefined' && 'ontouchstart' in window),
+  )
+
+  // ── Visibility / app-resume handling ──────────────────────────────────────
+  // Mobile browsers kill the camera track when the user switches apps.
+  // We restart automatically when the page becomes visible again.
+  async function _onVisibilityChange() {
+    if (typeof document === 'undefined') return
+    if (!document.hidden && cameraActive.value && _videoEl) {
+      // Give the browser a tick to fully restore the foreground context
+      await nextTick()
+      await startCamera(_videoEl, _canvasEl)
+    }
+  }
+
   // ── Cleanup ────────────────────────────────────────────────────────────────
-  onUnmounted(() => stopCamera())
+  onMounted(() => {
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', _onVisibilityChange)
+    }
+  })
+
+  onUnmounted(() => {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', _onVisibilityChange)
+    }
+    stopCamera()
+  })
 
   return {
     // State
@@ -225,6 +265,7 @@ export function useCamera() {
     torchOn,
     torchSupported,
     hasMultipleCameras,
+    canFlipCamera,
     // Actions
     startCamera,
     stopCamera,
