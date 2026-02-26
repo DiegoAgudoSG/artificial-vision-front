@@ -265,7 +265,62 @@
       </div>
     </div>
   </Transition>
-</template>
+
+  <!-- ── Detection toast ────────────────────────────────────────────────── -->
+  <Teleport to="body">
+    <Transition name="toast">
+      <div
+        v-if="toast.visible && toast.entry"
+        class="fixed bottom-6 right-6 z-[60] w-72 rounded-2xl border border-emerald-500/30 bg-zinc-900/95 backdrop-blur-md shadow-2xl shadow-zinc-950/60 overflow-hidden"
+      >
+        <!-- Green top accent bar -->
+        <div class="h-0.5 w-full bg-gradient-to-r from-emerald-500 to-teal-400" />
+
+        <div class="flex items-start gap-3 px-4 py-3.5">
+          <!-- Thumbnail -->
+          <img
+            :src="toast.entry.thumbnail"
+            alt=""
+            class="w-14 h-9 rounded-lg object-cover border border-zinc-700 shrink-0 mt-0.5"
+          />
+
+          <!-- Info -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 mb-0.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+              <span class="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Detection {{ toast.entry.id }}</span>
+            </div>
+            <p
+              v-if="toastVehicle?.license_plate"
+              class="font-mono font-bold text-sky-300 tracking-widest text-sm truncate"
+            >{{ toastVehicle.license_plate }}</p>
+            <p v-else class="text-xs text-zinc-500 italic">Plate not readable</p>
+            <p class="text-[11px] text-zinc-400 truncate mt-0.5">
+              {{ [toastVehicle?.brand, toastVehicle?.model].filter(Boolean).join(' ') || toastVehicle?.vehicle_type || '—' }}
+            </p>
+          </div>
+
+          <!-- Dismiss -->
+          <button
+            type="button"
+            class="p-1 text-zinc-600 hover:text-zinc-300 transition-colors shrink-0 -mt-0.5 -mr-1"
+            @click="toast.visible = false"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Auto-dismiss progress bar -->
+        <div class="h-0.5 bg-zinc-800">
+          <div
+            class="h-full bg-emerald-500/40 toast-shrink"
+          />
+        </div>
+      </div>
+    </Transition>
+  </Teleport></template>
 
 <script setup lang="ts">
 import type { VehicleImageResult } from '~/types/analysis'
@@ -385,6 +440,34 @@ const confidenceBarColor = computed(() => {
   if (confidence.value >= 0.6) return 'bg-amber-500'
   return 'bg-orange-500'
 })
+
+// ── Toast notification ────────────────────────────────────────────────────────
+
+const toast = reactive<{ visible: boolean; entry: HistoryEntry | null }>({
+  visible: false,
+  entry: null,
+})
+
+const toastVehicle = computed(() => {
+  if (!toast.entry) return null
+  const hit = toast.entry.result.results.find(isVehicleResult) as VehicleImageResult | undefined
+  return hit?.data.vehicle ?? null
+})
+
+let toastTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(
+  () => history.value.length,
+  (newLen, oldLen) => {
+    if (newLen <= oldLen) return
+    if (toastTimer) clearTimeout(toastTimer)
+    toast.entry = history.value[0] ?? null
+    toast.visible = true
+    toastTimer = setTimeout(() => { toast.visible = false }, 3500)
+  },
+)
+
+onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 
 // ── Canvas bounding-box overlay ──────────────────────────────────────────────
 //
