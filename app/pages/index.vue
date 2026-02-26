@@ -26,7 +26,7 @@
           <span class="w-6 h-6 rounded-md bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400">1</span>
           <h2 class="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Upload Image</h2>
         </div>
-        <ImageUploader @update:file="file = $event" />
+        <ImageUploader @update:file="file = $event" @analyze="handleAnalyze" />
       </div>
 
       <!-- Analyze button -->
@@ -77,40 +77,10 @@
 
 <script setup lang="ts">
 const file = ref<File | null>(null)
-const loading = ref(false)
-const result = ref<Record<string, unknown> | null>(null)
-const error = ref<string | null>(null)
+const { loading, result, error, analyze } = useAnalyze()
 
 async function handleAnalyze() {
-  if (!file.value || loading.value) return
-
-  loading.value = true
-  result.value = null
-  error.value = null
-
-  try {
-    const formData = new FormData()
-    formData.append('image', file.value)
-
-    const response = await $fetch<Record<string, unknown>>('/api/analyze', {
-      method: 'POST',
-      body: formData,
-    })
-
-    result.value = response
-  } catch (err: unknown) {
-    if (err instanceof Error) {
-      error.value = err.message
-    } else if (typeof err === 'object' && err !== null && 'data' in err) {
-      const fetchErr = err as { data?: { message?: string }; status?: number }
-      error.value =
-        fetchErr.data?.message ??
-        `Request failed with status ${fetchErr.status ?? 'unknown'}`
-    } else {
-      error.value = 'An unexpected error occurred. Please try again.'
-    }
-  } finally {
-    loading.value = false
-  }
+  if (!file.value) return
+  await analyze(file.value)
 }
 </script>
