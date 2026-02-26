@@ -46,6 +46,10 @@ export function useCamera() {
   // Raw stream – not reactive (no Vue overhead for MediaStream)
   let stream: MediaStream | null = null
 
+  // Enumerated video devices (populated after permission is granted)
+  let videoDevices: MediaDeviceInfo[] = []
+  let currentDeviceId: string | null = null
+
   // Keep element refs so visibility handler can restart without component involvement
   let _videoEl: HTMLVideoElement | null = null
   let _canvasEl: HTMLCanvasElement | undefined = undefined
@@ -54,8 +58,12 @@ export function useCamera() {
   async function detectMultipleCameras() {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices()
-      hasMultipleCameras.value =
-        devices.filter((d) => d.kind === 'videoinput').length > 1
+      videoDevices = devices.filter((d) => d.kind === 'videoinput')
+      hasMultipleCameras.value = videoDevices.length > 1
+      // Record which device is currently active so we can cycle by ID
+      if (stream) {
+        currentDeviceId = stream.getVideoTracks()[0]?.getSettings().deviceId ?? null
+      }
     } catch {
       hasMultipleCameras.value = false
     }
@@ -98,13 +106,11 @@ export function useCamera() {
     _stopTracks()
 
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: facingMode.value },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-      })
+      const videoConstraints: MediaTrackConstraints = currentDeviceId
+        ? { deviceId: { exact: currentDeviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+        : { facingMode: { ideal: facingMode.value }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+
+      stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints })
 
       videoEl.srcObject = stream
       await videoEl.play().catch(() => {
@@ -153,12 +159,23 @@ export function useCamera() {
     videoEl: HTMLVideoElement,
     canvasEl?: HTMLCanvasElement,
   ) {
-    facingMode.value =
-      facingMode.value === 'environment' ? 'user' : 'environment'
     // Reset capabilities while switching
     zoomSupported.value = false
     torchSupported.value = false
     torchOn.value = false
+
+    if (videoDevices.length > 1 && currentDeviceId) {
+      // Desktop & multi-camera: cycle to the next device by deviceId.
+      // facingMode is unreliable on desktop (all cameras report 'unknown').
+      const idx = videoDevices.findIndex((d) => d.deviceId === currentDeviceId)
+      const next = videoDevices[(idx + 1) % videoDevices.length]
+      currentDeviceId = next.deviceId
+    } else {
+      // Fallback for first toggle before deviceId is known: flip facingMode
+      facingMode.value = facingMode.value === 'environment' ? 'user' : 'environment'
+      currentDeviceId = null // let getUserMedia pick via facingMode
+    }
+
     await startCamera(videoEl, canvasEl)
   }
 
