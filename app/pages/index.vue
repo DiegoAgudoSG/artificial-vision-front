@@ -1,5 +1,5 @@
 <template>
-  <main class="min-h-screen flex flex-col items-center px-4 py-16 sm:py-24">
+  <main class="min-h-screen flex flex-col items-center px-4 py-8">
     <!-- Header -->
     <div class="w-full max-w-2xl text-center mb-12">
       <!-- Logo mark -->
