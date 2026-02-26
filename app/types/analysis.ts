@@ -75,12 +75,14 @@ export interface TicketData {
 // ─── Vehicle result ───────────────────────────────────────────────────────────
 
 export interface Vehicle {
-  license_plate: string
-  country?: string
-  vehicle_type?: string
-  brand?: string
-  model?: string
-  color?: string
+  license_plate: string | null
+  plate_visible: boolean
+  plate_unreadable_reason: 'occluded' | 'blurry' | 'angle' | 'damaged' | 'not_present' | null
+  country: string | null
+  vehicle_type: 'car' | 'truck' | 'motorcycle' | 'bus' | 'van' | 'other' | null
+  brand: string | null
+  model: string | null
+  color: string | null
 }
 
 export interface BoundingBox {
