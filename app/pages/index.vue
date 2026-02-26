@@ -14,12 +14,47 @@
         AI Vision Agent
       </h1>
       <p class="text-base sm:text-lg text-zinc-400 leading-relaxed max-w-md mx-auto">
-        Upload an image to extract information automatically
+        Upload an image or use your camera for real-time detection
       </p>
+    </div>
+
+    <!-- Tab switcher -->
+    <div class="w-full max-w-2xl mb-2">
+      <div class="flex rounded-xl bg-zinc-900 border border-zinc-800 p-1 gap-1">
+        <button
+          type="button"
+          class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2"
+          :class="activeTab === 'upload'
+            ? 'bg-zinc-700 text-white shadow'
+            : 'text-zinc-500 hover:text-zinc-300'"
+          @click="activeTab = 'upload'"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+          </svg>
+          Upload
+        </button>
+        <button
+          type="button"
+          class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2"
+          :class="activeTab === 'live'
+            ? 'bg-zinc-700 text-white shadow'
+            : 'text-zinc-500 hover:text-zinc-300'"
+          @click="activeTab = 'live'"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+          </svg>
+          Live Detection
+        </button>
+      </div>
     </div>
 
     <!-- Card -->
     <div class="w-full max-w-2xl space-y-6">
+
+      <!-- ── Upload tab ──────────────────────────────────────────────────── -->
+      <template v-if="activeTab === 'upload'">
       <!-- Upload section -->
       <div class="rounded-2xl border border-zinc-800 bg-zinc-900/50 backdrop-blur p-6">
         <div class="flex items-center gap-2 mb-5">
@@ -66,6 +101,20 @@
           <ResultViewer :result="filteredResult" :loading="loading" :error="error" />
         </div>
       </Transition>
+      </template>
+
+      <!-- ── Live Detection tab ──────────────────────────────────────────── -->
+      <template v-if="activeTab === 'live'">
+        <div class="rounded-2xl border border-zinc-800 bg-zinc-900/50 backdrop-blur p-6">
+          <div class="flex items-center gap-2 mb-5">
+            <span class="w-6 h-6 rounded-md bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400">1</span>
+            <h2 class="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Live Detection</h2>
+            <span class="ml-auto text-[10px] font-medium text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded-full">Beta</span>
+          </div>
+          <LiveDetector />
+        </div>
+      </template>
+
     </div>
 
     <!-- Footer -->
@@ -79,6 +128,7 @@
 import type { AnalysisResponse } from '~/types/analysis'
 import { isTicketResult, isVehicleResult } from '~/types/analysis'
 
+const activeTab = ref<'upload' | 'live'>('upload')
 const captures = ref<{ id: string; file: File }[]>([])
 const submittedIds = ref<string[]>([])
 const { loading, result, error, analyze } = useAnalyze()
