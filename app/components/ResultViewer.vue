@@ -7,7 +7,9 @@
           <div class="absolute inset-0 rounded-full border-2 border-zinc-800"></div>
           <div class="absolute inset-0 rounded-full border-2 border-transparent border-t-violet-500 animate-spin"></div>
         </div>
-        <p class="text-sm text-zinc-500 font-medium">Analyzing image…</p>
+        <Transition name="fade" mode="out-in">
+          <p :key="loadingPhrase" class="text-sm text-zinc-500 font-medium">{{ loadingPhrase }}</p>
+        </Transition>
       </div>
     </Transition>
 
@@ -348,6 +350,39 @@ const showRaw = ref(false)
 const ticketsOpen = ref(true)
 const vehiclesOpen = ref(true)
 const othersOpen = ref(true)
+
+// ── Rotating loading phrases ──────────────────────────────────────────────────
+
+const LOADING_PHRASES = [
+  'Analyzing image…',
+  'Reading the content…',
+  'Extracting data…',
+  'Running AI models…',
+  'Processing results…',
+  'Almost there…',
+  'Crunching the numbers…',
+  'Scanning for details…',
+  'Teaching the machines…',
+  'Hang tight…',
+]
+
+const loadingPhrase = ref(LOADING_PHRASES[0])
+let phraseTimer: ReturnType<typeof setInterval> | null = null
+
+watch(() => props.loading, (isLoading) => {
+  if (isLoading) {
+    let idx = 0
+    loadingPhrase.value = LOADING_PHRASES[0]
+    phraseTimer = setInterval(() => {
+      idx = (idx + 1) % LOADING_PHRASES.length
+      loadingPhrase.value = LOADING_PHRASES[idx]
+    }, 2500)
+  } else {
+    if (phraseTimer) { clearInterval(phraseTimer); phraseTimer = null }
+  }
+})
+
+onUnmounted(() => { if (phraseTimer) clearInterval(phraseTimer) })
 
 watch(() => props.result, () => {
   showRaw.value = false

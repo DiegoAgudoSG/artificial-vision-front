@@ -21,8 +21,8 @@
           </svg>
         </div>
         <div>
-          <p class="text-xs font-semibold text-white">Incompatible format</p>
-          <p class="text-xs text-zinc-400 mt-0.5">Only PNG, JPG and WEBP are accepted.</p>
+          <p class="text-xs font-semibold text-white">{{ toastTitle }}</p>
+          <p class="text-xs text-zinc-400 mt-0.5">{{ toastMessage }}</p>
         </div>
       </div>
     </Transition>
@@ -86,7 +86,7 @@
                   >Browse file</span>
                   or drag &amp; drop
                 </p>
-                <p class="text-xs text-zinc-600 mt-1.5">PNG, JPG, WEBP — up to 20 MB</p>
+                <p class="text-xs text-zinc-600 mt-1.5">PNG, JPG, WEBP · max 3 images</p>
               </div>
             </div>
           </template>
@@ -141,7 +141,7 @@
 
             <!-- "Add more" tile -->
             <button
-              v-if="!disabled"
+              v-if="!disabled && captures.length < MAX_CAPTURES"
               type="button"
               title="Add more files"
               class="shrink-0 w-16 h-16 rounded-xl border-2 border-dashed border-zinc-700 hover:border-violet-500/60 bg-zinc-900/60 hover:bg-violet-500/5 flex items-center justify-center text-zinc-600 hover:text-violet-400 transition-all"
@@ -344,7 +344,7 @@
 
         <!-- Capture button (live only) -->
         <button
-          v-if="cameraActive && !activeCapture"
+          v-if="cameraActive && !activeCapture && captures.length < MAX_CAPTURES"
           type="button"
           class="w-full flex items-center justify-center gap-2 rounded-xl py-3.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-sm font-semibold text-white transition-all active:scale-95"
           @click="onCapturePhoto"
@@ -388,7 +388,7 @@
 
             <!-- "Add another" tile -->
             <button
-              v-if="!disabled"
+              v-if="!disabled && captures.length < MAX_CAPTURES"
               type="button"
               title="Take another photo"
               class="shrink-0 w-16 h-16 rounded-xl border-2 border-dashed border-zinc-700 hover:border-violet-500/60 bg-zinc-900/60 hover:bg-violet-500/5 flex items-center justify-center text-zinc-600 hover:text-violet-400 transition-all"
@@ -465,6 +465,11 @@ function emitGallery() {
 
 function addCapture(file: File) {
   if (props.disabled) return
+  if (captures.value.length >= MAX_CAPTURES) return
+  if (captures.value.some(c => c.file.name === file.name)) {
+    showToast('Duplicate image', 'You may have already added this image.')
+    return
+  }
   const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
   const url = URL.createObjectURL(file)
   captures.value.push({ id, file, url })
@@ -498,16 +503,21 @@ function removeCapture(id: string) {
 // ── File upload (FILE mode) ───────────────────────────────────────────────────
 const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 const isAllowed = (type: string) => ALLOWED_TYPES.has(type)
+const MAX_CAPTURES = 3
 
 const isDragging = ref(false)
 const isDraggingInvalid = ref(false)
 const toastVisible = ref(false)
+const toastTitle = ref('Incompatible format')
+const toastMessage = ref('Only PNG, JPG and WEBP are accepted.')
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 const inputRef = ref<HTMLInputElement | null>(null)
 
 function triggerPicker() { if (!props.disabled) inputRef.value?.click() }
 
-function showToast() {
+function showToast(title = 'Incompatible format', message = 'Only PNG, JPG and WEBP are accepted.') {
+  toastTitle.value = title
+  toastMessage.value = message
   if (toastTimer) clearTimeout(toastTimer)
   toastVisible.value = true
   toastTimer = setTimeout(() => { toastVisible.value = false }, 3500)
@@ -533,9 +543,14 @@ function onDragLeave() {
 function onFileChange(event: Event) {
   const input = event.target as HTMLInputElement
   const files = Array.from(input.files ?? [])
-  files
-    .filter(file => isAllowed(file.type))
-    .forEach(file => addCapture(file))
+  const remaining = MAX_CAPTURES - captures.value.length
+  const valid = files.filter(f => isAllowed(f.type))
+  const hasInvalid = valid.length < files.length
+  const toAdd = valid.slice(0, remaining)
+  const capped = valid.length > remaining
+  toAdd.forEach(f => addCapture(f))
+  if (hasInvalid) showToast()
+  else if (capped) showToast('Limit reached', 'Maximum 3 images allowed.')
   if (inputRef.value) inputRef.value.value = ''
 }
 
@@ -546,8 +561,12 @@ function onDrop(event: DragEvent) {
   const files = Array.from(event.dataTransfer?.files ?? [])
   const imageFiles = files.filter(file => isAllowed(file.type))
   const hasInvalid = files.some(file => !isAllowed(file.type))
-  imageFiles.forEach(file => addCapture(file))
+  const remaining = MAX_CAPTURES - captures.value.length
+  const toAdd = imageFiles.slice(0, remaining)
+  const capped = imageFiles.length > remaining
+  toAdd.forEach(f => addCapture(f))
   if (hasInvalid) showToast()
+  else if (capped) showToast('Limit reached', 'Maximum 3 images allowed.')
 }
 
 // ── Camera ────────────────────────────────────────────────────────────────────
