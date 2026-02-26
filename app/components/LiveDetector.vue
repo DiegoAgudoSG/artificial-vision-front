@@ -92,26 +92,50 @@
       {{ isRunning ? 'Stop Detection' : 'Start Live Detection' }}
     </button>
 
-    <!-- ── Live result panel ──────────────────────────────────────────────── -->
+    <!-- ── Live result panel (history stack) ────────────────────────────── -->
     <Transition name="fade">
       <div
-        v-if="analyzing || lastResult || error"
-        class="rounded-2xl border border-zinc-800 bg-zinc-900/50 backdrop-blur p-6"
+        v-if="analyzing || history.length || error"
+        class="rounded-2xl border border-zinc-800 bg-zinc-900/50 backdrop-blur p-6 space-y-5"
       >
-        <div class="flex items-center gap-2 mb-5">
-          <span
-            class="w-6 h-6 rounded-md bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400"
-          >2</span>
-          <h2 class="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Live Result</h2>
-          <!-- Cooldown indicator -->
-          <Transition name="fade">
-            <span
-              v-if="status === 'cooldown'"
-              class="ml-auto text-[10px] font-medium text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-full"
-            >Cooldown — next scan soon</span>
-          </Transition>
+        <!-- Panel header -->
+        <div class="flex items-center gap-2">
+          <span class="w-6 h-6 rounded-md bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400">2</span>
+          <h2 class="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Detections</h2>
+          <span v-if="history.length" class="text-[10px] text-zinc-500 font-mono">({{ history.length }})</span>
+          <button
+            v-if="history.length"
+            type="button"
+            class="ml-auto text-[10px] font-medium text-zinc-500 hover:text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-2.5 py-1 rounded-full transition-colors"
+            @click="clearHistory()"
+          >Clear all</button>
         </div>
-        <ResultViewer :result="lastResult" :loading="analyzing" :error="error" />
+
+        <!-- Analyzing inline spinner -->
+        <div v-if="analyzing" class="flex items-center gap-3 py-1">
+          <span class="w-4 h-4 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin shrink-0" />
+          <span class="text-xs text-zinc-500">Analyzing frame…</span>
+        </div>
+
+        <!-- Error -->
+        <div
+          v-if="!analyzing && error"
+          class="rounded-xl border border-red-900/60 bg-red-950/30 px-4 py-3 text-xs text-red-400"
+        >{{ error }}</div>
+
+        <!-- History: newest first -->
+        <TransitionGroup name="slide" tag="div" class="space-y-5">
+          <div v-for="(item, idx) in history" :key="item.meta.batch_id + idx">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="text-[10px] font-mono text-zinc-600 bg-zinc-800 px-2 py-0.5 rounded-full">
+                {{ formatTs(item.meta.processed_at) }}
+              </span>
+              <span v-if="idx === 0" class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">Latest</span>
+            </div>
+            <ResultViewer :result="item" :loading="false" :error="null" />
+            <div v-if="idx < history.length - 1" class="mt-5 border-t border-zinc-800" />
+          </div>
+        </TransitionGroup>
       </div>
     </Transition>
 
@@ -131,7 +155,7 @@ const canvasEl = ref<HTMLCanvasElement | null>(null)
 const {
   isRunning,
   status,
-  lastResult,
+  history,
   confidence,
   analyzing,
   error,
@@ -139,7 +163,18 @@ const {
   cameraActive,
   startLive,
   stopLive,
+  clearHistory,
 } = useLiveDetection(videoEl, canvasEl)
+
+// ── Timestamp formatter ───────────────────────────────────────────────────
+
+function formatTs(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('es-ES', { timeStyle: 'medium' }).format(new Date(iso))
+  } catch {
+    return iso
+  }
+}
 
 // ── Status badge styling ──────────────────────────────────────────────────────
 
@@ -148,7 +183,6 @@ const STATUS_LABELS: Record<LiveStatus, string> = {
   scanning: 'Scanning…',
   analyzing: 'Analyzing…',
   detected: 'Detected!',
-  cooldown: 'Cooldown',
 }
 
 const statusBadgeClasses = computed(() => {
@@ -156,7 +190,6 @@ const statusBadgeClasses = computed(() => {
     case 'scanning':   return 'bg-blue-500/10 border-blue-500/30 text-blue-300'
     case 'analyzing':  return 'bg-violet-500/10 border-violet-500/30 text-violet-300'
     case 'detected':   return 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-    case 'cooldown':   return 'bg-orange-500/10 border-orange-500/30 text-orange-300'
     default:           return 'bg-zinc-800/60 border-zinc-700 text-zinc-400'
   }
 })
@@ -166,7 +199,6 @@ const statusDotColor = computed(() => {
     case 'scanning':   return 'bg-blue-400'
     case 'analyzing':  return 'bg-violet-400'
     case 'detected':   return 'bg-emerald-400'
-    case 'cooldown':   return 'bg-orange-400'
     default:           return 'bg-zinc-500'
   }
 })
@@ -209,7 +241,7 @@ function clearOverlay() {
   ctx?.clearRect(0, 0, cv.width, cv.height)
 }
 
-function drawDetectionOverlay(result: typeof lastResult.value) {
+function drawDetectionOverlay(result: AnalysisResponse | null) {
   const cv = canvasEl.value
   if (!cv) return
   syncCanvasSize()
@@ -273,11 +305,11 @@ watch(status, (s) => {
     return
   }
   if (s === 'scanning' || s === 'analyzing') {
-    drawDetectionOverlay(null)   // placeholder rect
+    drawDetectionOverlay(null)
     return
   }
-  if (s === 'detected' || s === 'cooldown') {
-    drawDetectionOverlay(lastResult.value)  // real or placeholder
+  if (s === 'detected') {
+    drawDetectionOverlay(history.value[0] ?? null)
   }
 })
 

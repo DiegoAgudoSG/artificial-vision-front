@@ -5,8 +5,9 @@
  *   - Every CAPTURE_INTERVAL_MS, grab a JPEG frame and send it to /analyze.
  *   - A positive hit is any result whose type is known (not 'unknown') and whose
  *     confidence is ≥ CONFIDENCE_THRESHOLD.
- *   - After a positive hit, enter a COOLDOWN_MS pause so we don't flood the API
- *     with frames of the same subject.
+ *   - After a positive hit a COOLDOWN_MS pause prevents the same subject from
+ *     being re-sent immediately, then scanning resumes automatically.
+ *   - Each new detection is prepended to `history` — old results are kept.
  *   - An in-flight guard (isAnalyzing) prevents concurrent requests.
  */
 import type { AnalysisResponse } from '~/types/analysis'
@@ -15,7 +16,7 @@ const CAPTURE_INTERVAL_MS = 750
 const COOLDOWN_MS = 4_000
 const CONFIDENCE_THRESHOLD = 0.5
 
-export type LiveStatus = 'idle' | 'scanning' | 'analyzing' | 'detected' | 'cooldown'
+export type LiveStatus = 'idle' | 'scanning' | 'analyzing' | 'detected'
 
 export function useLiveDetection(
   videoEl: Ref<HTMLVideoElement | null>,
@@ -26,7 +27,7 @@ export function useLiveDetection(
 
   const isRunning = ref(false)
   const status = ref<LiveStatus>('idle')
-  const lastResult = ref<AnalysisResponse | null>(null)
+  const history = ref<AnalysisResponse[]>([])   // newest first
   const confidence = ref<number | null>(null)
 
   // Non-reactive guards (no overhead in the hot loop)
@@ -56,13 +57,13 @@ export function useLiveDetection(
         )
 
         if (hits.length > 0) {
-          lastResult.value = rawResult.value as AnalysisResponse
+          // Prepend new result — keeps the full history visible
+          history.value = [rawResult.value as AnalysisResponse, ...history.value]
           confidence.value = hits[0]?.confidence ?? null
           status.value = 'detected'
 
-          // Cooldown — hold off new frames for a bit
+          // Cooldown — pause before scanning the next subject
           isCooldown = true
-          status.value = 'cooldown'
           cooldownTimer = setTimeout(() => {
             isCooldown = false
             if (isRunning.value) status.value = 'scanning'
@@ -74,7 +75,6 @@ export function useLiveDetection(
         status.value = 'scanning'
       }
     } catch {
-      // Silently swallow network errors in the loop; the UI shows the last good result
       status.value = 'scanning'
     } finally {
       isAnalyzing = false
@@ -86,13 +86,8 @@ export function useLiveDetection(
   async function startLive() {
     if (!videoEl.value) return
 
-    // Reset state
-    lastResult.value = null
-    confidence.value = null
-    isCooldown = false
     isAnalyzing = false
-    reset()
-
+    isCooldown = false
     isRunning.value = true
     status.value = 'scanning'
 
@@ -112,9 +107,15 @@ export function useLiveDetection(
     if (cooldownTimer) { clearTimeout(cooldownTimer); cooldownTimer = null }
     stopCamera()
     isRunning.value = false
-    isCooldown = false
     isAnalyzing = false
+    isCooldown = false
     status.value = 'idle'
+  }
+
+  function clearHistory() {
+    history.value = []
+    confidence.value = null
+    reset()
   }
 
   onUnmounted(stopLive)
@@ -123,7 +124,7 @@ export function useLiveDetection(
     // State
     isRunning: readonly(isRunning),
     status: readonly(status),
-    lastResult: readonly(lastResult) as Readonly<Ref<AnalysisResponse | null>>,
+    history: readonly(history) as Readonly<Ref<AnalysisResponse[]>>,
     confidence: readonly(confidence),
     analyzing,
     error: analyzeError,
@@ -132,5 +133,6 @@ export function useLiveDetection(
     // Actions
     startLive,
     stopLive,
+    clearHistory,
   }
 }
