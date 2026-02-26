@@ -3,12 +3,9 @@
     <!-- Header -->
     <div class="w-full max-w-2xl text-center mb-12">
       <!-- Logo mark -->
-      <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-violet-600/20 border border-violet-500/30 mb-6">
-        <svg class="w-7 h-7 text-violet-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178Z" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-        </svg>
-      </div>
+      <NuxtLink to="/" class="inline-flex items-center justify-center w-45 h-45 rounded-2xl ">
+        <img src="~/assets/img/logo.png" alt="Logo" />
+      </NuxtLink>
 
       <h1 class="text-4xl sm:text-5xl font-bold tracking-tight text-white mb-4">
         AI Vision Agent
