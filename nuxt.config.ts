@@ -20,6 +20,9 @@ export default defineNuxtConfig({
       // Base URL of your existing backend (e.g. Firebase Cloud Function)
       // Mapped from BACKEND_URL in .env so it is available client-side.
       backendUrl: process.env.BACKEND_URL || '',
+      // Optional API key forwarded to the SDK as a Bearer token.
+      // Set SDK_API_KEY in .env if your backend requires authentication.
+      sdkApiKey: process.env.SDK_API_KEY || '',
     },
   },
 })

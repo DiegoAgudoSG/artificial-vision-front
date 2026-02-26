@@ -58,7 +58,7 @@
 
       <!-- Result section -->
       <Transition name="fade">
-        <div v-if="loading || result || error" class="rounded-2xl border border-zinc-800 bg-zinc-900/50 backdrop-blur p-6">
+        <div v-if="loading || result || error" ref="resultSection" class="rounded-2xl border border-zinc-800 bg-zinc-900/50 backdrop-blur p-6">
           <div class="flex items-center gap-2 mb-5">
             <span class="w-6 h-6 rounded-md bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400">2</span>
             <h2 class="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Analysis Result</h2>
@@ -82,6 +82,7 @@ import { isTicketResult, isVehicleResult } from '~/types/analysis'
 const captures = ref<{ id: string; file: File }[]>([])
 const submittedIds = ref<string[]>([])
 const { loading, result, error, analyze } = useAnalyze()
+const resultSection = ref<HTMLElement | null>(null)
 
 /**
  * Derives a filtered AnalysisResponse that only keeps results whose gallery
@@ -121,6 +122,8 @@ const filteredResult = computed<AnalysisResponse | null>(() => {
 async function handleAnalyze() {
   if (!captures.value.length) return
   submittedIds.value = captures.value.map((c) => c.id)
-  await analyze(captures.value.map((c) => c.file))
+  analyze(captures.value.map((c) => c.file))
+  await nextTick()
+  resultSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 </script>

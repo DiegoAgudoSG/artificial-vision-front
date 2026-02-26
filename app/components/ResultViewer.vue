@@ -97,7 +97,7 @@
             <!-- Card header -->
             <div class="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800">
               <span class="text-[10px] font-mono text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full">
-                {{ (item.confidence * 100).toFixed(0) }}% conf.
+                {{ item.confidence != null ? ((item.confidence * 100).toFixed(0) + '% conf.') : 'unknown conf.' }}
               </span>
               <span class="text-[10px] text-zinc-600 font-mono">{{ item.image_id }}</span>
             </div>
@@ -110,11 +110,16 @@
                   <p class="text-[10px] text-zinc-500 mb-1 font-medium uppercase tracking-wider">Merchant</p>
                   <p class="text-sm font-semibold text-zinc-100">{{ item.data.merchant.name }}</p>
                   <p v-if="item.data.merchant.address" class="text-xs text-zinc-500 mt-0.5 leading-snug">{{ item.data.merchant.address }}</p>
+                  <p v-if="item.data.merchant.vat_number" class="text-[10px] text-zinc-600 mt-1 font-mono">VAT {{ item.data.merchant.vat_number }}</p>
                 </div>
                 <div class="rounded-xl bg-zinc-800/60 px-4 py-3">
                   <p class="text-[10px] text-zinc-500 mb-1 font-medium uppercase tracking-wider">Date &amp; Time</p>
                   <p class="text-sm font-semibold text-zinc-100">{{ item.data.ticket.date || '—' }}</p>
                   <p v-if="item.data.ticket.time" class="text-xs text-zinc-500 mt-0.5">{{ item.data.ticket.time }}</p>
+                  <div v-if="item.data.ticket.currency" class="flex items-center gap-1.5 mt-1">
+                    <span class="text-[10px] text-zinc-400 font-mono">{{ item.data.ticket.currency }}</span>
+                    <span v-if="item.data.ticket.currency_inferred" class="text-[9px] font-semibold text-amber-500/80 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0 rounded-full">inferred</span>
+                  </div>
                 </div>
               </div>
 
@@ -127,6 +132,17 @@
                 <div class="rounded-xl bg-zinc-800/60 px-4 py-3 text-center">
                   <p class="text-[10px] text-zinc-500 mb-1 font-medium uppercase tracking-wider">Tax</p>
                   <p class="text-sm font-semibold text-zinc-100">{{ formatCurrency(item.data.totals.tax, item.data.ticket.currency) }}</p>
+                  <!-- Tax lines breakdown -->
+                  <div v-if="item.data.totals.tax_lines?.length" class="mt-1.5 space-y-0.5">
+                    <div
+                      v-for="(tl, ti) in item.data.totals.tax_lines"
+                      :key="ti"
+                      class="flex items-center justify-between text-[9px] text-zinc-600"
+                    >
+                      <span class="font-mono">{{ tl.name }}</span>
+                      <span class="font-mono">{{ formatCurrency(tl.amount, item.data.ticket.currency) }}</span>
+                    </div>
+                  </div>
                 </div>
                 <div class="rounded-xl bg-zinc-800/60 px-4 py-3 text-center border border-amber-500/20">
                   <p class="text-[10px] text-amber-500/80 mb-1 font-medium uppercase tracking-wider">Total</p>
@@ -149,10 +165,14 @@
                       <span class="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0"></span>
                       <span class="text-zinc-200 truncate">{{ line.name }}</span>
                       <span class="text-zinc-600 text-xs shrink-0">×{{ line.quantity }}</span>
+                      <span v-if="line.category" class="text-[9px] font-medium text-zinc-600 bg-zinc-700/60 px-1.5 py-0 rounded-full shrink-0 capitalize">{{ line.category }}</span>
                     </div>
-                    <span class="text-zinc-300 font-semibold tabular-nums shrink-0 ml-3">
-                      {{ formatCurrency(line.total_price, item.data.ticket.currency) }}
-                    </span>
+                    <div class="flex items-center gap-2 shrink-0 ml-3">
+                      <span v-if="line.confidence != null" class="text-[9px] text-zinc-600 font-mono">{{ (line.confidence * 100).toFixed(0) }}%</span>
+                      <span class="text-zinc-300 font-semibold tabular-nums">
+                        {{ formatCurrency(line.total_price, item.data.ticket.currency) }}
+                      </span>
+                    </div>
                   </li>
                 </ul>
               </div>
@@ -201,7 +221,7 @@
             <!-- Card header -->
             <div class="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800">
               <span class="text-[10px] font-mono text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full">
-                {{ (item.confidence * 100).toFixed(0) }}% conf.
+                {{ item.confidence != null ? ((item.confidence * 100).toFixed(0) + '% conf.') : 'unknown conf.' }}
               </span>
               <span class="text-[10px] text-zinc-600 font-mono">{{ item.image_id }}</span>
             </div>
@@ -420,7 +440,7 @@ function formatCurrency(value: number, currency = 'EUR'): string {
     }).format(value)
   } catch {
     // Fallback for non-ISO-4217 currency codes (e.g. "RM")
-    return `${value.toFixed(2)} ${currency}`
+    return `${value ? value.toFixed(2) : '0.00'} ${currency ? currency : ''}`.trim()
   }
 }
 

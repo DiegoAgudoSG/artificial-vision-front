@@ -1,11 +1,8 @@
 /**
- * useAnalyze — composable for image analysis.
+ * useAnalyze — composable for image analysis via the vision-agent-sdk.
  *
- * Encapsulates all reactive state and the POST /api/analyze call so
- * pages/components stay clean.
- *
- * Accepts a single File or an array of Files. Multiple images are sent in one
- * batch request and the full AnalysisResponse is stored in `result`.
+ * Wraps VisionAgentSDK so pages/components stay clean and all
+ * connection details (baseUrl, apiKey) remain in runtimeConfig.
  *
  * Usage:
  *   const { loading, result, error, analyze, reset } = useAnalyze()
@@ -13,28 +10,14 @@
  *   await analyze([file1, file2])
  */
 
+import { VisionAgentSDK } from 'vision-agent-sdk'
 import type { AnalysisResponse } from '~/types/analysis'
-
-interface FetchError {
-  data?: { statusMessage?: string; message?: string }
-  status?: number
-  message?: string
-}
-
-function isFetchError(err: unknown): err is FetchError {
-  return typeof err === 'object' && err !== null && 'status' in err
-}
 
 export function useAnalyze() {
   const loading = ref(false)
   const result = ref<AnalysisResponse | null>(null)
   const error = ref<string | null>(null)
 
-  /**
-   * Send one or more images to the backend for analysis.
-   * Each file is appended under the `images` key so the backend
-   * receives a standard multipart/form-data batch request.
-   */
   async function analyze(files: File | File[]) {
     if (loading.value) return
 
@@ -43,31 +26,20 @@ export function useAnalyze() {
     error.value = null
 
     const config = useRuntimeConfig()
-    const base = (config.public.backendUrl as string | undefined) || ''
-    const backendUrl = base.replace(/\/$/, '') || '/api/analyze'
+    const baseUrl = (config.public.backendUrl as string | undefined)?.replace(/\/$/, '') || ''
+    const apiKey = (config.public.sdkApiKey as string | undefined) || ''
+
+    const sdk = new VisionAgentSDK({ apiKey, baseUrl })
+    const fileList = Array.isArray(files) ? files : [files]
 
     try {
-      const formData = new FormData()
-      const fileList = Array.isArray(files) ? files : [files]
-      for (const file of fileList) {
-        formData.append('images', file)
-      }
-
-      result.value = await $fetch<AnalysisResponse>(`${backendUrl}/api/analyze`, {
-        method: 'POST',
-        body: formData,
-      })
+      // AnalyzeResponse from the SDK is structurally identical to AnalysisResponse
+      result.value = (await sdk.analyzeImages(fileList)) as unknown as AnalysisResponse
     } catch (err: unknown) {
-      if (isFetchError(err)) {
-        error.value =
-          err.data?.statusMessage ??
-          err.data?.message ??
-          `Request failed with status ${err.status ?? 'unknown'}`
-      } else if (err instanceof Error) {
-        error.value = err.message
-      } else {
-        error.value = 'An unexpected error occurred. Please try again.'
-      }
+      error.value =
+        err instanceof Error
+          ? err.message
+          : 'An unexpected error occurred. Please try again.'
     } finally {
       loading.value = false
     }

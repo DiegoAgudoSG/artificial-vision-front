@@ -28,12 +28,12 @@
     </Transition>
 
     <!-- Source tabs -->
-    <div class="flex gap-1 p-1 bg-zinc-900 border border-zinc-800 rounded-xl w-fit">
+    <div class="flex gap-1 p-1 bg-zinc-900 border border-zinc-800 rounded-xl w-full overflow-hidden">
       <button
         v-for="tab in tabs"
         :key="tab.id"
         type="button"
-        class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200"
+        class="flex-1 min-w-0 flex items-center justify-center gap-1 px-2 py-2 rounded-lg text-xs font-semibold transition-all duration-200 whitespace-nowrap overflow-hidden"
         :class="mode === tab.id
           ? 'bg-violet-600 text-white shadow-md shadow-violet-900/40'
           : 'text-zinc-500 hover:text-zinc-300'"
@@ -166,7 +166,7 @@
       </div>
 
       <!-- CAMERA MODE -->
-      <div v-else key="camera" class="w-full space-y-3">
+      <div v-else-if="mode === 'camera'" key="camera" class="w-full space-y-3">
 
         <!-- Viewport -->
         <div
@@ -313,7 +313,7 @@
                   class="w-16 min-w-0 h-1 accent-violet-500 cursor-pointer"
                   @input="onZoomInput"
                 />
-                <span class="text-[10px] text-zinc-500 w-6 text-right tabular-nums shrink-0">{{ zoomLevel.toFixed(1) }}×</span>
+                <span class="text-[10px] text-zinc-500 w-6 text-right tabular-nums shrink-0">{{ (zoomLevel ?? 1).toFixed(1) }}×</span>
               </div>
             </div>
           </template>
@@ -402,6 +402,110 @@
         </div>
 
       </div>
+
+      <!-- URL MODE -->
+      <div v-else key="url" class="w-full space-y-3">
+
+        <!-- Input row -->
+        <div class="flex gap-2">
+          <div class="relative flex-1">
+            <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+              <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+              </svg>
+            </div>
+            <input
+              v-model="urlInput"
+              type="url"
+              placeholder="https://example.com/image.jpg"
+              :disabled="props.disabled || urlLoading"
+              class="w-full pl-9 pr-3 py-2.5 rounded-xl bg-zinc-900 border text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-all"
+              :class="urlError
+                ? 'border-red-500/60 focus:border-red-500'
+                : 'border-zinc-700 focus:border-violet-500'"
+              @keydown.enter.prevent="addFromUrl"
+            />
+          </div>
+          <button
+            type="button"
+            :disabled="!urlInput.trim() || props.disabled || urlLoading"
+            class="shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
+            :class="(!urlInput.trim() || props.disabled || urlLoading)
+              ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+              : 'bg-violet-600 hover:bg-violet-500 text-white active:scale-95'"
+            @click="addFromUrl"
+          >
+            <svg v-if="urlLoading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+            </svg>
+            <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            {{ urlLoading ? 'Loading…' : 'Add' }}
+          </button>
+        </div>
+
+        <!-- Inline error -->
+        <p v-if="urlError" class="text-xs text-red-400 px-1">{{ urlError }}</p>
+
+        <!-- Preview -->
+        <div v-if="activeCapture" class="relative w-full rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-950">
+          <img :src="activeCapture.url" alt="Preview" class="w-full max-h-80 object-contain" />
+          <button
+            v-if="!disabled"
+            type="button"
+            class="absolute top-3 right-3 w-8 h-8 rounded-full bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 transition-all hover:scale-110"
+            @click.stop="removeCapture(activeCapture.id)"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Placeholder when empty -->
+        <div v-else class="flex flex-col items-center justify-center gap-4 py-12 rounded-2xl border-2 border-dashed border-zinc-800 bg-zinc-900/40">
+          <div class="w-14 h-14 rounded-2xl bg-zinc-800 flex items-center justify-center">
+            <svg class="w-6 h-6 text-zinc-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 18h15M3.75 3h16.5M3.75 3v15a.75.75 0 00.75.75h15a.75.75 0 00.75-.75V3" />
+            </svg>
+          </div>
+          <p class="text-xs text-zinc-600">Paste an image URL above to preview it</p>
+        </div>
+
+        <!-- Gallery strip -->
+        <div v-if="captures.length > 0" class="w-full">
+          <div class="flex items-center gap-2 mb-2 px-0.5">
+            <span class="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Images</span>
+            <span class="text-xs text-zinc-600">({{ captures.length }})</span>
+          </div>
+          <div class="flex gap-2 overflow-x-auto pb-1">
+            <div
+              v-for="entry in captures"
+              :key="entry.id"
+              class="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 cursor-pointer transition-all hover:scale-105"
+              :class="activeId === entry.id
+                ? 'border-violet-500 shadow-md shadow-violet-900/40'
+                : 'border-zinc-700 hover:border-zinc-500'"
+              @click.stop="selectCapture(entry.id)"
+            >
+              <img :src="entry.url" :alt="entry.file.name" class="w-full h-full object-cover" />
+              <button
+                v-if="!disabled"
+                type="button"
+                class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-zinc-950/90 flex items-center justify-center text-zinc-400 hover:text-white"
+                @click.stop="removeCapture(entry.id)"
+              >
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
     </Transition>
   </div>
 </template>
@@ -426,7 +530,7 @@ const emit = defineEmits<{
 }>()
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type Mode = 'file' | 'camera'
+type Mode = 'file' | 'camera' | 'url'
 
 interface CaptureEntry {
   id: string
@@ -438,6 +542,7 @@ interface CaptureEntry {
 const tabs = [
   { id: 'file' as Mode, label: '⬆ Upload File' },
   { id: 'camera' as Mode, label: '📷 Camera' },
+  { id: 'url' as Mode, label: '🔗 From URL' },
 ]
 const mode = ref<Mode>('file')
 
@@ -623,6 +728,53 @@ function onAddAnother() {
   if (props.disabled) return
   activeId.value = null
   onStartCamera()
+}
+
+// ── URL mode ─────────────────────────────────────────────────────────────────
+const urlInput = ref('')
+const urlLoading = ref(false)
+const urlError = ref<string | null>(null)
+
+async function addFromUrl() {
+  const raw = urlInput.value.trim()
+  if (!raw || props.disabled || urlLoading.value) return
+  urlError.value = null
+
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    urlError.value = 'Please enter a valid URL.'
+    return
+  }
+
+  urlLoading.value = true
+  try {
+    const res = await fetch(url.href)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const blob = await res.blob()
+    if (!isAllowed(blob.type)) {
+      urlError.value = 'URL does not point to a PNG, JPG or WEBP image.'
+      return
+    }
+    const name = url.pathname.split('/').pop() || 'image.jpg'
+    const file = new File([blob], name, { type: blob.type })
+    const prev = captures.value.length
+    addCapture(file)
+    if (captures.value.length > prev) {
+      // success — clear input
+      urlInput.value = ''
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror')) {
+      urlError.value = 'Could not fetch the image. The server may not allow cross-origin requests.'
+    } else {
+      urlError.value = `Failed to load image: ${msg}`
+    }
+  } finally {
+    urlLoading.value = false
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

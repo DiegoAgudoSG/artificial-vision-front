@@ -46,6 +46,7 @@ export interface TicketInfo {
   date?: string
   time?: string
   currency?: string
+  currency_inferred?: boolean
 }
 
 export interface LineItem {
@@ -57,9 +58,17 @@ export interface LineItem {
   confidence?: number
 }
 
+export interface TaxLine {
+  name: string
+  rate: number
+  base: number
+  amount: number
+}
+
 export interface Totals {
   subtotal: number
   tax: number
+  tax_lines?: TaxLine[]
   total: number
 }
 
