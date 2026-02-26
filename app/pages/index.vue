@@ -101,10 +101,8 @@ const filteredResult = computed<AnalysisResponse | null>(() => {
   if (filteredResults.length === result.value.results.length) return result.value
 
   // Recompute summary from surviving results
-  const totalTickets = filteredResults.filter((r) => r.type === 'ticket').length
-  const totalSpent = filteredResults
-    .filter(isTicketResult)
-    .reduce((sum, r) => sum + r.data.totals.total, 0)
+  const survivingTickets = filteredResults.filter(isTicketResult)
+  const totalTickets = survivingTickets.length
   const vehiclesDetected = filteredResults.filter((r) => r.type === 'vehicle').length
   const vehicleTypes: Record<string, number> = {}
   filteredResults.filter(isVehicleResult).forEach((r) => {
@@ -112,10 +110,16 @@ const filteredResult = computed<AnalysisResponse | null>(() => {
     vehicleTypes[vt] = (vehicleTypes[vt] ?? 0) + 1
   })
 
+  // combined_total: only when all surviving tickets share the same currency
+  const currencies = [...new Set(survivingTickets.map((r) => r.data.ticket.currency ?? 'unknown'))]
+  const combined_total = currencies.length === 1 && currencies[0] !== 'unknown'
+    ? { amount: survivingTickets.reduce((sum, r) => sum + r.data.totals.total, 0), currency: currencies[0] }
+    : undefined
+
   return {
     ...result.value,
     results: filteredResults,
-    summary: { total_tickets: totalTickets, total_spent: totalSpent, vehicles_detected: vehiclesDetected, vehicle_types: vehicleTypes },
+    summary: { total_tickets: totalTickets, combined_total, vehicles_detected: vehiclesDetected, vehicle_types: vehicleTypes },
   }
 })
 

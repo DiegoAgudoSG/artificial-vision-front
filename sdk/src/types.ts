@@ -8,9 +8,15 @@ export interface AnalyzeMeta {
 
 // ─── Summary ────────────────────────────────────────────────────────────────────────
 
+export interface CombinedTotal {
+  amount: number;
+  currency: string;
+}
+
 export interface AnalyzeSummary {
   total_tickets: number;
-  total_spent: number;
+  /** Present only when all tickets share the same currency. Absent means mixed currencies. */
+  combined_total?: CombinedTotal;
   vehicles_detected: number;
   vehicle_types: Record<string, number>;
 }

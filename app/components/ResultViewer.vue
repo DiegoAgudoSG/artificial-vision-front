@@ -50,9 +50,13 @@
                 <p class="text-lg font-bold text-amber-400">{{ result.summary.total_tickets }}</p>
                 <p class="text-[10px] text-zinc-500 font-medium uppercase tracking-wider mt-0.5">Tickets</p>
               </div>
-              <div class="flex-1 min-w-[80px] rounded-xl bg-zinc-800/60 px-3 py-2.5 text-center">
-                <p class="text-lg font-bold text-emerald-400">{{ formatCurrency(result.summary.total_spent) }}</p>
+              <div v-if="result.summary.combined_total" class="flex-1 min-w-[80px] rounded-xl bg-zinc-800/60 px-3 py-2.5 text-center">
+                <p class="text-lg font-bold text-emerald-400">{{ formatCurrency(result.summary.combined_total.amount, result.summary.combined_total.currency) }}</p>
                 <p class="text-[10px] text-zinc-500 font-medium uppercase tracking-wider mt-0.5">Spent</p>
+              </div>
+              <div v-else class="flex-1 min-w-[160px] rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 flex items-center gap-2">
+                <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
+                <p class="text-xs text-amber-400 font-medium leading-tight">Mixed currencies — total unavailable</p>
               </div>
             </template>
             <template v-if="vehicleResults.length">
@@ -400,7 +404,7 @@ watch(() => props.loading, (isLoading) => {
   } else {
     if (phraseTimer) { clearInterval(phraseTimer); phraseTimer = null }
   }
-})
+}, { immediate: true })
 
 onUnmounted(() => { if (phraseTimer) clearInterval(phraseTimer) })
 
