@@ -470,7 +470,7 @@ const scalabilityPillars = [
     border: 'border-sky-900/40',
     iconBg: 'bg-sky-500/10 border-sky-500/20',
     dot: 'text-sky-500',
-    items: ['Firebase Hosting CDN global', 'SDK sin dependencias (bundle ~4 kB)', 'SSG-compatible, hidratación mínima'],
+    items: ['Firebase Hosting CDN global', 'SDK sin dependencias (bundle ~4 kB)', 'Hidratación mínima'],
   },
   {
     icon: '🏗️',
