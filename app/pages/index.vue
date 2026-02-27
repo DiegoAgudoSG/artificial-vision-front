@@ -14,7 +14,7 @@
         AI Vision Agent
       </h1>
       <p class="text-base sm:text-lg text-zinc-400 leading-relaxed max-w-md mx-auto">
-        Upload an image or use your camera for real-time detection
+        Analyzes images and video in real time using AI: detects and extracts data from purchase receipts and vehicle license plates.
       </p>
     </div>
 
